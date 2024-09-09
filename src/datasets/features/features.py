@@ -424,7 +424,9 @@ def _cast_to_python_objects(obj: Any, only_1d_for_numpy: bool, optimize_list_cas
                 # )
 
                 from concurrent.futures import ProcessPoolExecutor
-                with ProcessPoolExecutor() as executor:
+                import os
+                max_workers = os.cpu_count() - 2
+                with ProcessPoolExecutor(max_workers=max_workers) as executor:
                   args = [(elmt, only_1d_for_numpy, optimize_list_casting) for elmt in obj]
                   results = list(executor.map(_worker_cast_to_python_objects, args, chunksize=100))
 
