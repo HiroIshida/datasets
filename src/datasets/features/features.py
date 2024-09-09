@@ -412,15 +412,30 @@ def _cast_to_python_objects(obj: Any, only_1d_for_numpy: bool, optimize_list_cas
                 first_elmt, only_1d_for_numpy=only_1d_for_numpy, optimize_list_casting=optimize_list_casting
             )
             if has_changed_first_elmt or not optimize_list_casting:
-                return (
-                    [
-                        _cast_to_python_objects(
-                            elmt, only_1d_for_numpy=only_1d_for_numpy, optimize_list_casting=optimize_list_casting
-                        )[0]
-                        for elmt in obj
-                    ],
-                    True,
-                )
+                # The original is super slow.
+                # return (
+                #     [
+                #         _cast_to_python_objects(
+                #             elmt, only_1d_for_numpy=only_1d_for_numpy, optimize_list_casting=optimize_list_casting
+                #         )[0]
+                #         for elmt in obj
+                #     ],
+                #     True,
+                # )
+
+                from concurrent.futures import ProcessPoolExecutor
+                with ProcessPoolExecutor() as executor:
+                  args = [(elmt, only_1d_for_numpy, optimize_list_casting) for elmt in obj]
+                  results = list(executor.map(_worker_cast_to_python_objects, args, chunksize=100))
+
+                # The correctness of the results above is already checked below
+                # import pickle, hashlib
+                # assert len(results) == len(results2), f"len(results): {len(results)}, len(results2): {len(results2)}"
+                # for i, (res1, res2) in enumerate(zip(results, results2)):
+                #     hash1 = hashlib.md5(pickle.dumps(res1)).hexdigest()
+                #     hash2 = hashlib.md5(pickle.dumps(res2)).hexdigest()
+                #     assert hash1 == hash2, f"hash1: {hash1}, hash2: {hash2}"
+                return results, True
             else:
                 if isinstance(obj, (list, tuple)):
                     return obj, False
@@ -430,6 +445,11 @@ def _cast_to_python_objects(obj: Any, only_1d_for_numpy: bool, optimize_list_cas
             return obj, False
     else:
         return obj, False
+
+
+def _worker_cast_to_python_objects(args):
+  return _cast_to_python_objects(*args)[0]
+
 
 
 def cast_to_python_objects(obj: Any, only_1d_for_numpy=False, optimize_list_casting=True) -> Any:
